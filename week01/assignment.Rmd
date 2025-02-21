@@ -1,0 +1,26 @@
+---
+title: "Exercise 01"
+author: "Julia Frank"
+date: "2025-02-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+Load the epiwraps library (using `library(epiwraps)`):
+
+```{r}
+library(epiwraps)
+```
+
+## Session info
+
+Print the session info (using `sessionInfo()`):
+
+```{r}
+sessionInfo()
+```
