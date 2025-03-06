@@ -1,0 +1,90 @@
+---
+title: "Exercise 02"
+author: "Julia Frank"
+date: "2025-02-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r}
+suppressPackageStartupMessages({
+  library(AnnotationHub) # to fetch genomes, annotations, etc.
+  library(ensembldb)     # to manipulate ensembl gene annotations
+  library(GenomicRanges) # data structure for genomic ranges 
+  library(epiwraps)      # visualization
+})
+```
+
+## Download Annotation data
+
+Start AnnotationHub
+
+```{r}
+ah <- AnnotationHub()
+```
+
+Using AnnotationHub, find and download the following annotations data:
+
+-   The mouse (Mus Musculus) EnsDb object, version 102, genome build GRCm38
+
+    ```{r}
+    q <- query(ah, c("Mus Musculus", "EnsDb", "102"))
+    q # Check if all criteria are met
+    ensdb_mm <- ah[["AH89211"]]
+    ensdb_mm # Check if download worked
+    ```
+
+-   The mouse genome sequence ( dna_sm ) in TwoBit/2bit format for GRCm38
+
+    ```{r}
+    q2 <- query(ah, c("Mus musculus","GRCm38","dna_sm"))
+    q2 # Check if criteria are met
+    mcols(q2)[, c("rdatadateadded", "title")] # Find newest version
+    dna_mm <- ah[["AH88477"]]
+    dna_mm # Check if download worked
+    ```
+
+-   The drosophila melanogaster genome sequence ( dna_sm ) in TwoBit/2bit format for BDGP6
+
+    ```{r}
+    q3 <- query(ah, c("drosophila melanogaster","BDGP6","dna_sm"))
+    q3 # Check if criteria are met
+    mcols(q3)[, c("rdatadateadded", "title")] # Find newest version
+    dna_dm <- ah[["AH106160"]]
+    dna_dm # Check if download worked
+    ```
+
+## Data Analysis
+
+Using the mouse EnsDb, find the following:
+
+-   How many different ensembl gene IDs and gene symbols are there for protein-coding genes?
+
+    ```{r}
+    # Find protein-coding genes
+    prcg <- genes(ensdb_mm, filter = GeneBiotypeFilter(("protein_coding")))
+    #prcg
+    paste("There are", length(unique(prcg$gene_id)), "different ensembl gene IDs.")
+    paste("There are", length(unique(prcg$gene_name)), "different gene symbols (human-readable gene names).")
+    ```
+
+-   Plot the distribution of the (spliced) length of protein-coding transcripts **Tip:** this will require you to extract exons of protein-coding transcripts from the database, and split them by transcript, before summing the width of the exons of each transcript)
+
+    ```{r}
+    # Extract exons of protein-coding transcripts & split by transcript
+    exons_prct <- exonsBy(ensdb_mm, by = "tx", filter = GeneBiotypeFilter("protein_coding"))
+    head(exons_prct, 1)
+
+    # Sum width of the exons of each transcript
+    spliced_lengths <- sum(width(exons_prct))
+    head(spliced_lengths)
+
+    # Plot the distribution of the (spliced) length of protein-coding transcripts
+    hist(spliced_lengths, main = "Distribution of the spliced length of protein-coding transcripts", xlab = "Spliced length (bp)", ylab = "Frequency", xlim = c(0, 15000),breaks = 500)
+
+    ```
