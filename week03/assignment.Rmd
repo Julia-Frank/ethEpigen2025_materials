@@ -1,0 +1,172 @@
+---
+title: "Exercise 03"
+author: "Julia Frank"
+date: "2025-03-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Load packages & AnnotationHub**
+
+```{r 1}
+suppressPackageStartupMessages({
+  library(AnnotationHub)
+  library(Rsubread)      # read alignment
+  library(rtracklayer)   # read/write genomic file formats
+  library(Biostrings)    # handling sequences
+  library(Rfastp)        # read QC/trimming
+  library(Rsamtools)    # to look at bam file
+  library(epiwraps)
+})
+ah <- AnnotationHub()
+```
+
+## Download the data
+
+-   Download the following Drosophila ChIP-seq for the protein CTCF:
+
+    -   [https://www.encodeproject.org/files/ENCFF127RRR/\@\@download/ENCFF127RRR.fastq.gz](https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz)
+
+    -   (no input control for the purpose of this exercise)
+
+```{r 2, eval=FALSE}
+options(timeout=3600) # Increase the download timeout
+dir.create("raw_data") # Create a directory for the data
+download.file("https://www.encodeproject.org/files/ENCFF127RRR/@@download/ENCFF127RRR.fastq.gz", "raw_data/reads.fastq.gz", mode="wb") # mode write binary for windows!
+```
+
+## Process the data
+
+-   Process it from the raw data, obtaining:
+
+    -   bam file
+
+    -   peaks
+
+### Quality Control and trimming
+
+```{r 3}
+dir.create("trimmed_data")
+qc <- lapply(c(CTCF="raw_data/reads.fastq.gz"), FUN=function(x){
+  Rfastp::rfastp(x, thread=4, overrepresentationAnalysis=TRUE,
+                 outputFastq=file.path("trimmed_data/",gsub("\\.fastq\\.gz$","",basename(x))))
+})
+Rfastp::curvePlot(qc$CTCF, curve="content_curves")
+
+```
+
+There are quite a lot of N (especially before the trimming).
+
+### Alignment
+
+Building a genome index for mapping
+
+```{r 4, eval=FALSE}
+# newest drophisophila melongaster genome sequence (TwoBit/2bit format, BDGP6) from AnnotationHub
+genome <- ah[["AH106160"]]
+dir.create("BDGP6_genome")
+# convert to fasta format
+export(import.2bit(genome), "BDGP6_genome/genome.fasta.gz", compress=TRUE) 
+# we build a Rsubread index
+Rsubread::buildindex("BDGP6_genome/rsubread", reference="BDGP6_genome/genome.fasta.gz")
+```
+
+Align the data to the reference genome with the created index
+
+```{r 5}
+dir.create("aligned_data")
+align.stats <- Rsubread::align(index="BDGP6_genome/rsubread", type="dna",
+                               readfile1=c("trimmed_data/reads_R1.fastq.gz"),
+                               output_file=c("aligned_data/CTCF.bam"),
+                               nthreads=6, sortReadsByCoordinates=TRUE)
+align.stats
+```
+
+Align.stats has the information on how many reads (and what percentage) were mapped. The bam file is saved as "CTCF.bam" in the ordner aligned_data.
+
+### Peak calling
+
+```{r 6}
+peaks <- callPeaks(bam="aligned_data/CTCF.bam")
+peaks
+
+```
+
+## Analyse the data
+
+-   **Report:**
+
+    -   how many reads (and what percentage) were mapped
+
+```{r 7}
+# Mapping statistics are in align.stats
+# Calculate percentages
+align.stats$Percentage <- (align.stats[,1] / align.stats["Total_reads",1]) * 100
+
+# Display results
+cat("Total Reads:", align.stats["Total_reads",1], "\n")
+cat("Mapped Reads:", align.stats["Mapped_reads",1], "(", round(align.stats["Mapped_reads",2], 2), "%)\n")
+cat("Uniquely mapped Reads:", align.stats["Uniquely_mapped_reads",1], "(", round(align.stats["Uniquely_mapped_reads",2], 2), "%)\n")
+cat("Unmapped Reads:", align.stats["Unmapped_reads",1], "(", round(align.stats["Unmapped_reads",2], 2), "%)\n")
+cat("Multimapped read:", align.stats["Multi_mapping_reads",1], "(", round(align.stats["Multi_mapping_reads",2], 2), "%)\n")
+```
+
+-   how many peaks were found
+
+```{r 8}
+# The peak data is in peaks
+cat("Number of found peaks:", length(peaks))
+```
+
+-   Plot the signal around one of the peaks that is located *inside a gene*.
+
+Find gene annotation that matches the reference genome
+
+```{r 9, eval=FALSE}
+# get matching gene annotation
+# find reference gene version for ah[["AH106160"]]:
+q <- query(ah, c("drosophila melanogaster","BDGP6","dna_sm"))
+meta <- mcols(q)[, c("rdatadateadded", "title", "genome", "tags", "rdatapath")]
+meta
+# AH106160 has genome BDGP6.32
+q2 <- query(ah, c("Drosophila", "EnsDb", "BDGP6.32"))
+q2
+# Check if everything matches
+ensdb <- ah[["AH104833"]] # query for this identifier, wait till it gets done
+ensdb
+
+```
+
+```{r 10}
+# Get matching gene annotation
+annotation <- ah[["AH104833"]]
+annotation
+
+# Find genes
+genes <- genes(annotation)
+genes
+
+# Find peaks that are inside a gene
+# peaks_in_gene <- peaks[which(overlapsAny(peaks, genes))] # doesn't need to include whole peak sequence in gene --> find different function
+peaks_in_gene <- subsetByOverlaps(peaks, genes, type = "within") # this one completley includes peak in gene
+peaks_in_gene
+
+# select one peak
+peak <- peaks_in_gene[1]
+peak
+```
+
+Check if its actually completely inside a gene
+
+```{r 11}
+plotSignalTracks(list(MyPeak = peak, genes = genes), region = peak, ensdb = annotation, extend = 30000, transcripts="full")
+```
+
+Plot the signal around one of the peaks that is located *inside a gene*.
+
+```{r 12}
+plotSignalTracks("aligned_data/CTCF.bam", region=peak, extend=1000,  tracks.params=list(ylim=c(0,25))) # 5000 Nucleotides next to input
+```
