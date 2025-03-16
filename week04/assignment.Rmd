@@ -1,0 +1,106 @@
+---
+title: "Exercise 04"
+author: "Julia Frank"
+date: "2025-03-14"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+})
+```
+
+## Download Data
+
+**Find and download from ENCODE the peaks (i.e. bed-like format) for the
+following in mouse embryonic stem cells (mESC) :**
+
+-   **Transcription factor p300**
+
+<!-- -->
+
+-   **Histone modifications H3K4me3, H3K4me1, H3K27ac, and H3K27me3**
+
+<!-- -->
+
+-   **(when there are replicates, we recommend using the bed file
+    denoted as “conservative IDR thresholded peaks”)**
+
+Since I only found data for the transcription factor p300 in the
+ES-Bruce4 strain, I decided to use it for all the data to ensure
+comparability between the transcription factor and the histone
+modifications. All the data is also from the same lab.
+
+For the EP300 ChIP-seq data, I used the latest conservative
+IDR-thresholded peaks, while for the Histone ChIP-seq data, I used the
+latest default peaks (typically pseudoreplicated peaks for two isogenic
+replicates).
+
+ENCODE provided warnings about data quality for all datasets, such as
+insufficient read depth.
+
+```{r}
+options(timeout=3600) # Increase the download timeout
+dir.create("raw_data") # Create a directory for the data
+
+# Transcription factor
+# p 300 (https://www.encodeproject.org/experiments/ENCSR000CCD/)
+download.file("https://www.encodeproject.org/files/ENCFF653YVR/@@download/ENCFF653YVR.bed.gz", "raw_data/p300.bed.gz", mode="wb")
+peaks_p300 <- rtracklayer::import("raw_data/p300.bed.gz", format="narrowPeak")
+
+# Histone modifications
+# H3K4me3 (https://www.encodeproject.org/experiments/ENCSR000CBG/)
+download.file("https://www.encodeproject.org/files/ENCFF974BMC/@@download/ENCFF974BMC.bed.gz", "raw_data/H3K4me3.bed.gz", mode="wb")
+peaks_H3K4me3 <- rtracklayer::import("raw_data/H3K4me3.bed.gz", format="narrowPeak")
+
+# H3K4me1 (https://www.encodeproject.org/experiments/ENCSR000CBF/)
+download.file("https://www.encodeproject.org/files/ENCFF426IIV/@@download/ENCFF426IIV.bed.gz", "raw_data/H3K4me1.bed.gz", mode="wb")
+peaks_H3K4me1 <- rtracklayer::import("raw_data/H3K4me1.bed.gz", format="narrowPeak")
+
+# H3K27ac (https://www.encodeproject.org/experiments/ENCSR000CDE/)
+download.file("https://www.encodeproject.org/files/ENCFF274UIB/@@download/ENCFF274UIB.bed.gz", "raw_data/H3K27ac.bed.gz", mode="wb")
+peaks_H3K27ac <- rtracklayer::import("raw_data/H3K27ac.bed.gz", format="narrowPeak")
+
+# H3K27me3 (https://www.encodeproject.org/experiments/ENCSR000CFN/)
+download.file("https://www.encodeproject.org/files/ENCFF008XKX/@@download/ENCFF008XKX.bed.gz", "raw_data/H3K27me3.bed.gz", mode="wb")
+peaks_H3K27me3 <- rtracklayer::import("raw_data/H3K27me3.bed.gz", format="narrowPeak")
+```
+
+## Question
+
+**Of the p300 peaks, what proportion overlap each of the marks?
+(expected form of the answer: one % for each of the marks)**
+
+```{r}
+# function to find proportion of overlaps
+overlaps <- function(p300, histone){
+  o <- findOverlaps(p300, histone, type='any')
+  n_p300 <- length(peaks_p300)
+  prop <- length(o)/n_p300 * 100
+  return(prop)
+}
+
+# Compute the proportion of p300 peaks overlapping each mark
+p300_H3K4me3 <- overlaps(peaks_p300, peaks_H3K4me3)
+p300_H3K4me1 <- overlaps(peaks_p300, peaks_H3K4me1)
+p300_H3K27ac <- overlaps(peaks_p300, peaks_H3K27ac)
+p300_H3K27me3 <- overlaps(peaks_p300, peaks_H3K27me3)
+
+# Print results
+cat("Proportion of p300 peaks overlapping each of the marks:")
+cat("- H3K4me3:", round(p300_H3K4me3,2), "%")
+cat("- H3K4me1:", round(p300_H3K4me1,2), "%")
+cat("- H3K27ac:", round(p300_H3K27ac,2), "%")
+cat("- H3K27me3:", round(p300_H3K27me3,2), "%")
+
+```
