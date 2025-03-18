@@ -26,13 +26,7 @@ suppressPackageStartupMessages({
 following in mouse embryonic stem cells (mESC) :**
 
 -   **Transcription factor p300**
-
-<!-- -->
-
--   **Histone modifications H3K4me3, H3K4me1, H3K27ac, and H3K27me3**
-
-<!-- -->
-
+-   **Histone modifications H3K4me3, H3K4me1, H3K27ac, and H3K27me**
 -   **(when there are replicates, we recommend using the bed file
     denoted as “conservative IDR thresholded peaks”)**
 
@@ -85,8 +79,9 @@ peaks_H3K27me3 <- rtracklayer::import("raw_data/H3K27me3.bed.gz", format="narrow
 # function to find proportion of overlaps
 overlaps <- function(p300, histone){
   o <- findOverlaps(p300, histone, type='any')
+  unique_o <- length(unique(queryHits(o)))
   n_p300 <- length(peaks_p300)
-  prop <- length(o)/n_p300 * 100
+  prop <- unique_o/n_p300 * 100
   return(prop)
 }
 

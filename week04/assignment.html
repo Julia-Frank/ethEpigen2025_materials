@@ -370,14 +370,8 @@ format) for the following in mouse embryonic stem cells (mESC)
 :</strong></p>
 <ul>
 <li><strong>Transcription factor p300</strong></li>
-</ul>
-<!-- -->
-<ul>
 <li><strong>Histone modifications H3K4me3, H3K4me1, H3K27ac, and
-H3K27me3</strong></li>
-</ul>
-<!-- -->
-<ul>
+H3K27me</strong></li>
 <li><strong>(when there are replicates, we recommend using the bed file
 denoted as “conservative IDR thresholded peaks”)</strong></li>
 </ul>
@@ -423,8 +417,9 @@ peaks_H3K27me3 &lt;- rtracklayer::import(&quot;raw_data/H3K27me3.bed.gz&quot;, f
 <pre class="r"><code># function to find proportion of overlaps
 overlaps &lt;- function(p300, histone){
   o &lt;- findOverlaps(p300, histone, type=&#39;any&#39;)
+  unique_o &lt;- length(unique(queryHits(o)))
   n_p300 &lt;- length(peaks_p300)
-  prop &lt;- length(o)/n_p300 * 100
+  prop &lt;- unique_o/n_p300 * 100
   return(prop)
 }
 
@@ -438,13 +433,13 @@ p300_H3K27me3 &lt;- overlaps(peaks_p300, peaks_H3K27me3)
 cat(&quot;Proportion of p300 peaks overlapping each of the marks:&quot;)</code></pre>
 <pre><code>## Proportion of p300 peaks overlapping each of the marks:</code></pre>
 <pre class="r"><code>cat(&quot;- H3K4me3:&quot;, round(p300_H3K4me3,2), &quot;%&quot;)</code></pre>
-<pre><code>## - H3K4me3: 39.49 %</code></pre>
+<pre><code>## - H3K4me3: 35.01 %</code></pre>
 <pre class="r"><code>cat(&quot;- H3K4me1:&quot;, round(p300_H3K4me1,2), &quot;%&quot;)</code></pre>
-<pre><code>## - H3K4me1: 15.98 %</code></pre>
+<pre><code>## - H3K4me1: 15.52 %</code></pre>
 <pre class="r"><code>cat(&quot;- H3K27ac:&quot;, round(p300_H3K27ac,2), &quot;%&quot;)</code></pre>
-<pre><code>## - H3K27ac: 61.33 %</code></pre>
+<pre><code>## - H3K27ac: 54.41 %</code></pre>
 <pre class="r"><code>cat(&quot;- H3K27me3:&quot;, round(p300_H3K27me3,2), &quot;%&quot;)</code></pre>
-<pre><code>## - H3K27me3: 0.25 %</code></pre>
+<pre><code>## - H3K27me3: 0.23 %</code></pre>
 </div>
 
 
