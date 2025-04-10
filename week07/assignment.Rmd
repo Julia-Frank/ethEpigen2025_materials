@@ -1,0 +1,154 @@
+---
+title: "Exercise 07"
+author: "Julia Frank"
+date: "2025-04-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Exercise description
+
+In the same dataset of ATAC on chr19, plot
+
+1) the insertion (i.e. ‘cuts’) profile of nucleosome-free fragments and
+
+2) the centers of nucleosome-containing fragments, around the high-confidence motifs of two factors.
+
+You can choose your own factors of interest, or for instance use KLF4, MAZ and/or FOXD3.
+
+Expected form of the answer: 2 figures (one for each factor/motif), each containing the two signals (two columns in the heatmap) around the motifs, respectively for NF cuts and mononucleosome centers.
+
+## Load packages
+
+```{r}
+suppressPackageStartupMessages({
+  library(epiwraps)
+  library(AnnotationHub)
+  library(MotifDb)
+  library(universalmotif)
+  library(ensembldb)
+  library(ggplot2)
+})
+
+ah <- AnnotationHub()
+```
+
+## Load Data
+
+### ATAC data of Chromosome 19
+
+Code copied out of the tutorial
+
+```{r}
+options(timeout=3600) # Increase the download timeout
+dir.create("data") # Create a directory for the data
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam", "data/atac.chr19.bam", mode="wb")
+download.file("https://ethz-ins.org/content/w7/atac.chr19.bam.bai", "data/atac.chr19.bam.bai", mode="wb")
+```
+
+Prepare the tracks like in the tutorial
+
+```{r}
+bam <- "data/atac.chr19.bam"
+
+# create a track using all fragments, computing the coverage at each position (and force Ensembl naming)
+epiwraps::bam2bw(bam, output_bw = "data/full_cov.bw", paired=TRUE, binWidth=10L, forceSeqlevelsStyle = "Ensembl")
+
+# create a track using all fragments, but computing the number of cuts/insertion sites at each position
+bam2bw(bam, output_bw = "data/full_cuts.bw", paired=TRUE, binWidth=1L, type="ends", 
+                 trim=4L, extend=3L, forceSeqlevelsStyle = "Ensembl")
+
+# create a track using only nucleosome-free fragments, computing coverage
+bam2bw(bam, output_bw = "data/NF_cov.bw", paired=TRUE, binWidth=5L, minFragLength=30, 
+       maxFragLength=120, forceSeqlevelsStyle = "Ensembl")
+
+# create a track using only nucleosome-free fragments, the number of cuts/insertion sites at each position
+bam2bw(bam, output_bw = "data/NF_cuts.bw", paired=TRUE, binWidth=1L, type="ends", minFragLength=30, 
+       maxFragLength=120, trim=4L, extend=3L, forceSeqlevelsStyle = "Ensembl")
+
+# create a track using only mono-nucleosome fragments, computing coverage
+bam2bw(bam, output_bw = "data/mono_cov.bw", paired=TRUE, binWidth=10L, minFragLength=140,
+       maxFragLength=220, forceSeqlevelsStyle = "Ensembl")
+
+# create a track using only the (10bp) centers of mono-nucleosome fragments
+bam2bw(bam, output_bw = "data/mono_centers.bw", paired=TRUE, binWidth=5L, minFragLength=140, trim=4L,
+       maxFragLength=220, type="center", extend=10L, forceSeqlevelsStyle = "Ensembl")
+```
+
+### Get genome sequence for Chromosome 19
+
+```{r}
+# Get mouse genome
+genome <- ah[["AH68356"]]
+# get the sequence for chr19:
+chr19 <- import(genome)["19"]
+```
+
+### Obtaining sites with a KLF4 and MAZ motif
+
+```{r}
+# KLF4
+# get KLF4 motif
+motif_KLF4 <- MotifDb::query(MotifDb, c("KLF4","Mus"))[[1]]
+# motif_KLF4
+# view_motifs(motif_KLF4)
+motif2_KLF4 <- convert_motifs(motif_KLF4, class="TFBSTools-PFMatrix")
+# find motif matches across chr19
+moi_KLF4 <- motifmatchr::matchMotifs(motif2_KLF4, chr19, out="positions", p.cutoff=1e-5)[[1]]
+# convert to GRanges
+moi_KLF4 <- as(setNames(moi_KLF4,names(chr19)), "GRanges")
+
+# MAZ
+# get MAZ motif
+motif_MAZ <- MotifDb::query(MotifDb, c("MAZ","Mus"))[[1]]
+# motif_MAZ
+# view_motifs(motif_MAZ)
+motif2_MAZ <- convert_motifs(motif_MAZ, class="TFBSTools-PFMatrix")
+# find motif matches across chr19
+moi_MAZ <- motifmatchr::matchMotifs(motif2_MAZ, chr19, out="positions", p.cutoff=1e-5)[[1]]
+# convert to GRanges
+moi_MAZ <- as(setNames(moi_MAZ,names(chr19)), "GRanges")
+
+```
+
+### Prepare the 2 tracks
+
+Tracks needed:
+
+1) the insertion (i.e. ‘cuts’) profile of nucleosome-free fragments –\> NF_cuts.bw
+
+2) the centers of nucleosome-containing fragments –\> mono_centers
+
+```{r}
+# Get the track data intoR
+tracks <- list.files(path = "data", pattern = "bw$", full.names = TRUE)
+# Pick only the 2 required tracks
+target_tracks <- tracks[grepl("mono_centers.bw|NF_cuts.bw", tracks)]
+names(target_tracks) <- gsub("\\.bw","",basename(target_tracks))
+names(target_tracks)
+```
+
+## Plot the signal around the 2 motifs
+
+```{r}
+# KLF4
+# extract signals around the motif occurences
+# we zoom in to 300bp around the motif centers, in windows of 5bp
+sm_KLF4 <- signal2Matrix(target_tracks, moi_KLF4, w=5, extend=300)
+
+# plot the signals:
+hm <- plotEnrichedHeatmaps(sm_KLF4, trim=0.95, multiScale = TRUE, axis_name = "0")
+draw(hm, column_title = "Signals around KLF4 Motifs")
+
+# MAZ
+# extract signals around the motif occurences
+# we zoom in to 300bp around the motif centers, in windows of 5bp
+sm_MAZ <- signal2Matrix(target_tracks, moi_MAZ, w=5, extend=300)
+
+# plot the signals:
+hm <- plotEnrichedHeatmaps(sm_MAZ, trim=0.95, multiScale = TRUE, axis_name = "0")
+draw(hm, column_title = "Signals around MAZ Motifs")
+```
